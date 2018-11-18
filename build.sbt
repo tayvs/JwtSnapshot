@@ -19,6 +19,8 @@ libraryDependencies ++= {
     "org.scalatest"     %% "scalatest" % "3.0.5",
     "de.heikoseeberger" %% "akka-http-circe" % "1.22.0",
 
+    "com.pauldijou" %% "jwt-core" % "0.19.0",
+
     "io.circe" %% "circe-core" % circeVersion,
     "io.circe" %% "circe-generic" % circeVersion,
     "io.circe" %% "circe-parser" % circeVersion

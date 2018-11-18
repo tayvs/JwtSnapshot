@@ -14,11 +14,13 @@ import scala.collection.breakOut
 
 class Test extends FunSuite with Matchers with ScalatestRouteTest
   with CirceCustomMarshaller with CustomParamExtractor
-  with ErrorAccumulatingCirceSupport {
+  with ErrorAccumulatingCirceSupport with JwtParser {
+
+  override def jwtParser: JwtParser = new JwtParser
 
   val route: Route = get {
     pathEndOrSingleSlash {
-      parameter(NameHeader, AgeHeader) { (name, age) =>
+      parameter(BrandId, UserUUID) { (name, age) =>
         complete(s"$name $age")
       }
     }
