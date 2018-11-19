@@ -1,7 +1,8 @@
 package net.tayvs
 
-import akka.http.scaladsl.model.HttpHeader
+import akka.http.scaladsl.model.{HttpHeader, StatusCodes}
 import akka.http.scaladsl.model.HttpHeader.ParsingResult
+import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken}
 import akka.http.scaladsl.server.{Directive1, Route}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.directives.ParameterDirectives.{ParamDef, ParamDefAux, ParamMagnet}
@@ -20,8 +21,8 @@ class Test extends FunSuite with Matchers with ScalatestRouteTest
 
   val route: Route = get {
     pathEndOrSingleSlash {
-      parameter(BrandId, UserUUID) { (name, age) =>
-        complete(s"$name $age")
+      parameter(BrandId) { (name) =>
+        complete(s"$name")
       }
     }
   } ~ get {
@@ -31,13 +32,15 @@ class Test extends FunSuite with Matchers with ScalatestRouteTest
   }
 
   test("must return hello") {
-    val age, name = "15, alex"
-    val headers = Seq(
-      HttpHeader.parse("age", age),
-      HttpHeader.parse("name", name)
-    ).collect { case ok: ParsingResult.Ok => ok.header }(breakOut)
+    val (age, name) = ("15", "alex")
+    val header = Authorization(OAuth2BearerToken("""{
+                                                   |  "brandId": "qwerty",
+                                                   |  "user_uuid": "admin",
+                                                   |  "department": "dep1"
+                                                   |}""".stripMargin))
 
-    Get("/").withHeaders(headers) ~> route ~> check {
+    Get("/").withHeaders(header) ~> route ~> check {
+      status shouldBe StatusCodes.OK
       responseAs[String] shouldBe s"$name $age"
     }
   }

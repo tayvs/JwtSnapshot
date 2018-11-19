@@ -2,15 +2,19 @@ package net.tayvs
 
 import akka.http.scaladsl.model.MediaTypes.`application/json`
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken}
 import akka.http.scaladsl.unmarshalling.{FromRequestUnmarshaller, Unmarshaller}
 import akka.http.scaladsl.util.FastFuture
 import akka.util.ByteString
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport
+import cats.syntax.either._
+import io.circe._, io.circe.parser._
+
 
 import scala.collection.immutable.Seq
 
 trait CirceCustomMarshaller {
-  this: Test =>
+  this: Test  with JwtParser =>
 
   case class Foo(value: String)
 
@@ -29,9 +33,10 @@ trait CirceCustomMarshaller {
       case HttpRequest(_, _, headers, entity, _) if entity.contentType == ContentTypes.NoContentType
         || unmarshallerContentTypes.exists(_ matches entity.contentType) =>
         val headerJson = headers
-          .find(header => header.name() equals "Auth")
-          .map(el => ByteString(el.value()).asByteBuffer)
-          .map(jawn.parseByteBuffer(_).fold(throw _, identity))
+          .collectFirst {
+            case Authorization(credentials: OAuth2BearerToken) => credentials.token
+          }
+          .flatMap(str => parse(str).toOption)
           .getOrElse(Json.fromJsonObject(JsonObject.empty))
 
         val bodyByteStrJson = entity match {
@@ -41,7 +46,7 @@ trait CirceCustomMarshaller {
         bodyByteStrJson
           .map(bs => Some(bs)
             .filter(_.nonEmpty)
-            .map(bs => jawn.parseByteBuffer(bs.asByteBuffer).fold(throw _, identity))
+            .flatMap(bs => jawn.parseByteBuffer(bs.asByteBuffer).toOption)
             .getOrElse(Json.fromJsonObject(JsonObject.empty)))
           .map(bodyJson => bodyJson deepMerge headerJson)
     })
