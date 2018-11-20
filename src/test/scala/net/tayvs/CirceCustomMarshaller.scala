@@ -16,9 +16,11 @@ import scala.collection.immutable.Seq
 trait CirceCustomMarshaller {
   this: Test  with JwtParser =>
 
-  case class Foo(value: String)
+  case class Foo(brandId: String)
 
-  case class Bar(name: String)
+  case class Bar(department: String)
+
+  case class CreateRequest(brandId: String, content: String)
 
   import io.circe._
   import io.circe.generic.semiauto._
@@ -27,6 +29,8 @@ trait CirceCustomMarshaller {
   implicit val fooEncoder: Encoder[Foo] = deriveEncoder[Foo]
   implicit val barDecoder: Decoder[Bar] = deriveDecoder[Bar]
   implicit val barEncoder: Encoder[Bar] = deriveEncoder[Bar]
+  implicit val createReqDecoder: Decoder[CreateRequest] = deriveDecoder
+  implicit val createReqEncoder: Encoder[CreateRequest] = deriveEncoder
 
   implicit val jsonFromHeaderUnmarshaller: FromRequestUnmarshaller[Json] =
     Unmarshaller.apply(_ => {
@@ -36,7 +40,7 @@ trait CirceCustomMarshaller {
           .collectFirst {
             case Authorization(credentials: OAuth2BearerToken) => credentials.token
           }
-          .flatMap(str => parse(str).toOption)
+          .flatMap(str => jwtParser.decodeJwt(str).flatMap(json => parse(json).toOption))
           .getOrElse(Json.fromJsonObject(JsonObject.empty))
 
         val bodyByteStrJson = entity match {
@@ -46,7 +50,7 @@ trait CirceCustomMarshaller {
         bodyByteStrJson
           .map(bs => Some(bs)
             .filter(_.nonEmpty)
-            .flatMap(bs => jawn.parseByteBuffer(bs.asByteBuffer).toOption)
+            .flatMap(bs => parse(bs.utf8String).toOption)
             .getOrElse(Json.fromJsonObject(JsonObject.empty)))
           .map(bodyJson => bodyJson deepMerge headerJson)
     })

@@ -27,13 +27,14 @@ trait JwtParser extends ErrorAccumulatingCirceSupport {
 
     import JwtParser._
 
+    final val jwtOpts = JwtOptions(signature = false, expiration = false, notBefore = false)
     def claim(token: String): Option[JwtClaim] = {
-      val jwtOpts = JwtOptions(signature = false, expiration = false, notBefore = false)
+      decodeJwt(token)
+        .flatMap(claimJson => decode[JwtClaim](claimJson).toOption)
+    }
 
-      Jwt
-        .decode(token, jwtOpts)
-        .flatMap(claimJson => decode[JwtClaim](claimJson).toTry)
-        .toOption
+    def decodeJwt(token: String): Option[String] = {
+      Jwt.decode(token, jwtOpts).toOption
     }
 
     def token(httpHeader: HttpHeader): Option[String] = {

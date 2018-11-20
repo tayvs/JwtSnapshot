@@ -21,7 +21,11 @@ trait CustomParamExtractor {
     override def getValue(jwtClaim: JwtClaim): String = jwtClaim.user_uuid
   }
 
-  case class CustomExtractor(f : JwtClaim => String) extends JwtExtractor {
+  case object Department extends JwtExtractor {
+    override def getValue(jwtClaim: JwtClaim): String = jwtClaim.department
+  }
+
+  case class CustomExtractor(f: JwtClaim => String) extends JwtExtractor {
     override def getValue(jwtClaim: JwtClaim): String = f(jwtClaim)
   }
 

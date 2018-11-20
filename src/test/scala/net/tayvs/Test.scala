@@ -1,17 +1,13 @@
 package net.tayvs
 
-import akka.http.scaladsl.model.{HttpHeader, StatusCodes}
-import akka.http.scaladsl.model.HttpHeader.ParsingResult
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken}
-import akka.http.scaladsl.server.{Directive1, Route}
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.directives.ParameterDirectives.{ParamDef, ParamDefAux, ParamMagnet}
+import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import akka.http.scaladsl.unmarshalling.FromStringUnmarshaller
-import de.heikoseeberger.akkahttpcirce.{BaseCirceSupport, ErrorAccumulatingCirceSupport}
+import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport
 import org.scalatest.{FunSuite, Matchers}
-
-import scala.collection.breakOut
+import pdi.jwt.Jwt
 
 class Test extends FunSuite with Matchers with ScalatestRouteTest
   with CirceCustomMarshaller with CustomParamExtractor
@@ -21,60 +17,51 @@ class Test extends FunSuite with Matchers with ScalatestRouteTest
 
   val route: Route = get {
     pathEndOrSingleSlash {
-      parameter(BrandId) { (name) =>
-        complete(s"$name")
+      parameter(BrandId, UserUUID) { (name, userUUID) =>
+        complete(s"$name $userUUID")
       }
     }
-  } ~ get {
-    entity(as[Foo]) { foo =>
-      complete(foo)
+  } ~ post {
+    pathEndOrSingleSlash {
+      println("post /")
+      entity(as[CreateRequest]) { request =>
+        complete(request)
+      }
     }
   }
 
+  val jwtToken: String = Jwt.encode(
+    """{
+      |  "brandId": "qwerty",
+      |  "user_uuid": "admin",
+      |  "department": "dep1"
+      |}""".stripMargin)
+
   test("must return hello") {
-    val (age, name) = ("15", "alex")
-    val header = Authorization(OAuth2BearerToken("""{
-                                                   |  "brandId": "qwerty",
-                                                   |  "user_uuid": "admin",
-                                                   |  "department": "dep1"
-                                                   |}""".stripMargin))
+    val header = Authorization(OAuth2BearerToken(jwtToken))
 
     Get("/").withHeaders(header) ~> route ~> check {
       status shouldBe StatusCodes.OK
-      responseAs[String] shouldBe s"$name $age"
+      responseAs[String] shouldBe "qwerty admin"
     }
   }
 
   test("must return object with value from header") {
-    val headers = Seq(HttpHeader.parse("Auth", "{\"value\": \"str\"}"))
-      .collect { case ok: ParsingResult.Ok => ok.header }(breakOut)
-    Get("/").withHeaders(headers) ~> route ~> check {
-      responseAs[Foo] shouldBe Foo("str")
-    }
-  }
+    val header = Authorization(OAuth2BearerToken(jwtToken))
+    val body = Map("content" -> "qq")
 
-  test("must return object with value from header ignoring sent body") {
-    val bar = Bar("hello")
-    val headers = Seq(HttpHeader.parse("Auth", "{\"value\": \"str\"}"))
-      .collect { case ok: ParsingResult.Ok => ok.header }(breakOut)
-    Get("/", bar).withHeaders(headers) ~> route ~> check {
-      responseAs[Foo] shouldBe Foo("str")
+
+    Post("/", body).withHeaders(header) ~> route ~> check {
+      responseAs[CreateRequest] shouldBe CreateRequest("qwerty", "qq")
     }
   }
 
   test("must return object with value from header overriding sent body") {
-    val foo = Foo("hello")
-    val headers = Seq(HttpHeader.parse("Auth", "{\"value\": \"str\"}"))
-      .collect { case ok: ParsingResult.Ok => ok.header }(breakOut)
-    Get("/", foo).withHeaders(headers) ~> route ~> check {
-      responseAs[Foo] shouldBe Foo("str")
-    }
-  }
+    val body = Map("brandId" -> "MyBrandId", "content" -> "qq")
+    val header = Authorization(OAuth2BearerToken(jwtToken))
 
-  test("must return sent object") {
-    val foo = Foo("hello")
-    Get("/", foo) ~> route ~> check {
-      responseAs[Foo] shouldBe Foo("hello")
+    Post("/", body).withHeaders(header) ~> route ~> check {
+      responseAs[CreateRequest] shouldBe CreateRequest("qwerty", "qq")
     }
   }
 
